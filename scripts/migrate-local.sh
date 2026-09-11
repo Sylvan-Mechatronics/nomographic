@@ -28,12 +28,39 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MIGRATIONS_DIR="$PROJECT_DIR/local/sql"
 
+# .env.local uses plain assignments (not ${VAR:-default}), so sourcing it
+# unconditionally would silently clobber overrides a caller already exported
+# (e.g. deploy-local.sh setting LOCAL_MIGRATOR_USE_RUNNING_SERVICE=1 to reuse
+# the running service instead of starting a second, memory-hungry temporary
+# migrator container). Preserve any caller-provided values across the source.
+_CALLER_OVERRIDE_VARS=(
+    LOCAL_MIGRATOR_USE_RUNNING_SERVICE
+    ARCADEDB_LOCAL_HOST
+    ARCADEDB_LOCAL_HTTP_PORT
+    ARCADEDB_LOCAL_ROOT_PASSWORD
+    ARCADEDB_LOCAL_DB
+)
+for _var in "${_CALLER_OVERRIDE_VARS[@]}"; do
+    if [[ -n "${!_var+x}" ]]; then
+        declare "_preset_${_var}=${!_var}"
+    fi
+done
+
 if [ -f "$PROJECT_DIR/.env.local" ]; then
     set -a
     # shellcheck disable=SC1091
     . "$PROJECT_DIR/.env.local"
     set +a
 fi
+
+for _var in "${_CALLER_OVERRIDE_VARS[@]}"; do
+    _preset_name="_preset_${_var}"
+    if [[ -n "${!_preset_name+x}" ]]; then
+        declare "${_var}=${!_preset_name}"
+        unset "$_preset_name"
+    fi
+done
+unset _var _preset_name _CALLER_OVERRIDE_VARS
 
 # Deprecated vars are intentionally ignored.
 unset LOCAL_MIGRATOR_ROOT_PASSWORD LOCAL_MIGRATOR_OPTS_MEMORY

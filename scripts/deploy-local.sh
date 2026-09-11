@@ -108,6 +108,8 @@ if [[ -n "$PI_HOST" ]]; then
         --exclude='.git/'
         --exclude='__pycache__/'
         --exclude='*.pyc'
+        --exclude='.env.local'
+        --exclude='.env.central'
     )
 
     SSH_CMD="ssh -o StrictHostKeyChecking=accept-new"
@@ -126,16 +128,25 @@ if [[ -n "$PI_HOST" ]]; then
         SSH_OPTS+=(-i "${NOMON_SSH_KEY}")
     fi
 
-    echo "==> Installing local DB service and applying migrations on ${PI_HOST}..."
-    ssh "${SSH_OPTS[@]}" "$PI_HOST" \
-        "NOMON_SUDO_PASS=${_NOMON_SUDO_PASS_QUOTED} bash -ls \"\$@\"" -- \
+    # ssh concatenates all trailing command-line arguments into a single
+    # string with spaces and hands that whole string to the remote shell for
+    # re-parsing — per-argument quoting from a local bash array does NOT
+    # survive the trip. Any positional value containing shell metacharacters
+    # (e.g. a password with '&' or ';') would otherwise be split/executed on
+    # the remote side. Build one fully pre-quoted command string locally
+    # instead of relying on ssh to preserve argv boundaries.
+    REMOTE_ARGS_QUOTED="$(printf '%q ' \
         "$REMOTE_DIR" \
         "$LOCAL_SERVICE_ENV_PAYLOAD_B64" \
         "$SERVICE_HTTP_PORT" \
         "$SERVICE_ROOT_PASSWORD" \
         "$SERVICE_DB_NAME" \
         "$SERVICE_DATA_PATH" \
-        "$SNAPSHOT_ENABLED" <<'END_REMOTE'
+        "$SNAPSHOT_ENABLED")"
+    REMOTE_CMD="NOMON_SUDO_PASS=${_NOMON_SUDO_PASS_QUOTED} bash -ls -- ${REMOTE_ARGS_QUOTED}"
+
+    echo "==> Installing local DB service and applying migrations on ${PI_HOST}..."
+    ssh "${SSH_OPTS[@]}" "$PI_HOST" "$REMOTE_CMD" <<'END_REMOTE'
 set -eEuo pipefail
 
 remote_dir="${1:-~/perceptua-nomon/nomographic}"
@@ -153,6 +164,7 @@ if [[ -n "${NOMON_SUDO_PASS:-}" ]]; then
     _askpass_script="$(mktemp)"
     chmod 700 "${_askpass_script}"
     cat > "${_askpass_script}" <<EOSUDOPASS
+#!/bin/sh
 printf '%s\n' "${NOMON_SUDO_PASS}"
 EOSUDOPASS
     export SUDO_ASKPASS="${_askpass_script}"
