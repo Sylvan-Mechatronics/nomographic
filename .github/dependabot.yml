@@ -1,0 +1,7 @@
+version: 2
+# Keep GitHub Actions SHA pins and package dependencies current (review S-23).
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

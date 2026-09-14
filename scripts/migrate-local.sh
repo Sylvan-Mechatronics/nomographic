@@ -13,7 +13,7 @@
 #   ARCADEDB_LOCAL_ROOT_PASSWORD      Root password when using running service
 #                                     (default: LOCAL_ARCADEDB_ROOT_PASSWORD)
 #   LOCAL_ARCADEDB_ROOT_PASSWORD      Shared root password for local service + migrator
-#                                     (default: testpassword)
+#                                     (required; no default)
 #   LOCAL_ARCADEDB_OPTS_MEMORY        Shared ArcadeDB memory options for local service + migrator
 #   LOCAL_MIGRATOR_IMAGE              ArcadeDB Docker image (default: arcadedata/arcadedb:latest)
 #   LOCAL_MIGRATOR_HTTP_PORT          Local temporary migrator HTTP port (default: 2481)
@@ -69,7 +69,10 @@ SUBCOMMAND="${1:-migrate}"
 
 ARCADEDB_LOCAL_DATA="${ARCADEDB_LOCAL_DATA:-local/data}"
 ARCADEDB_LOCAL_DB="${ARCADEDB_LOCAL_DB:-nomon_local}"
-LOCAL_ARCADEDB_ROOT_PASSWORD="${LOCAL_ARCADEDB_ROOT_PASSWORD:-testpassword}"
+if [[ -z "${LOCAL_ARCADEDB_ROOT_PASSWORD:-}" ]]; then
+    echo "Error: LOCAL_ARCADEDB_ROOT_PASSWORD is not set (define it in .env.local)" >&2
+    exit 1
+fi
 LOCAL_ARCADEDB_OPTS_MEMORY="${LOCAL_ARCADEDB_OPTS_MEMORY:-}"
 LOCAL_MIGRATOR_IMAGE="${LOCAL_MIGRATOR_IMAGE:-arcadedata/arcadedb:latest}"
 LOCAL_MIGRATOR_HTTP_PORT="${LOCAL_MIGRATOR_HTTP_PORT:-2481}"

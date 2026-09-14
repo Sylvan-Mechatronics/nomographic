@@ -7,7 +7,7 @@
 # Environment variables:
 #   ARCADEDB_HOST              ArcadeDB server hostname (default: localhost)
 #   ARCADEDB_HTTP_PORT         ArcadeDB HTTP API port (default: 2480)
-#   ARCADEDB_ROOT_PASSWORD     Root password (default: testpassword)
+#   ARCADEDB_ROOT_PASSWORD     Root password (required; no default)
 
 set -euo pipefail
 
@@ -26,7 +26,11 @@ SUBCOMMAND="${1:-migrate}"
 
 ARCADEDB_HOST="${ARCADEDB_HOST:-localhost}"
 ARCADEDB_HTTP_PORT="${ARCADEDB_HTTP_PORT:-2480}"
-ARCADEDB_ROOT_PASSWORD="${ARCADEDB_ROOT_PASSWORD:-testpassword}"
+# No default root password (review finding S-7): refuse to run without one.
+if [[ -z "${ARCADEDB_ROOT_PASSWORD:-}" ]]; then
+    echo "Error: ARCADEDB_ROOT_PASSWORD is not set (define it in .env.central)" >&2
+    exit 1
+fi
 ARCADEDB_CENTRAL_DB="nomon_central"
 
 BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"

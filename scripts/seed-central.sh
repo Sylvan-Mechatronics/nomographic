@@ -11,12 +11,23 @@
 #
 # Idempotent: checks for existing records before inserting.
 #
+# SAFETY: this creates an account with a PUBLICLY KNOWN password. It refuses to
+# run unless NOMOGRAPHIC_SEED_TEST_DATA=1 is set, so it cannot be run against a
+# real central database by habit (review finding S-7).
+#
 # Environment variables:
+#   NOMOGRAPHIC_SEED_TEST_DATA — must be "1" to run at all
 #   ARCADEDB_HOST          — ArcadeDB server hostname (default: localhost)
 #   ARCADEDB_HTTP_PORT     — ArcadeDB HTTP API port (default: 2480)
-#   ARCADEDB_ROOT_PASSWORD — ArcadeDB root password (default: testpassword)
+#   ARCADEDB_ROOT_PASSWORD — ArcadeDB root password (required; no default)
 
 set -euo pipefail
+
+if [[ "${NOMOGRAPHIC_SEED_TEST_DATA:-}" != "1" ]]; then
+    echo "Refusing to seed: this inserts a test account with a well-known password." >&2
+    echo "Set NOMOGRAPHIC_SEED_TEST_DATA=1 to run against a throwaway dev database only." >&2
+    exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -31,7 +42,11 @@ fi
 
 ARCADEDB_HOST="${ARCADEDB_HOST:-localhost}"
 ARCADEDB_HTTP_PORT="${ARCADEDB_HTTP_PORT:-2480}"
-ARCADEDB_ROOT_PASSWORD="${ARCADEDB_ROOT_PASSWORD:-testpassword}"
+# No default root password (review finding S-7): refuse to run without one.
+if [[ -z "${ARCADEDB_ROOT_PASSWORD:-}" ]]; then
+    echo "Error: ARCADEDB_ROOT_PASSWORD is not set (define it in .env.central)" >&2
+    exit 1
+fi
 
 BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
 API_URL="${BASE_URL}/api/v1/command/nomon_central"
