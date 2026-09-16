@@ -93,6 +93,15 @@ if [[ "$LOCAL_MIGRATOR_USE_RUNNING_SERVICE" != "1" ]]; then
     else
         ARCADEDB_LOCAL_ROOT_PASSWORD="$LOCAL_ARCADEDB_ROOT_PASSWORD"
     fi
+    # ...and always talk to the temporary container we just published, not to
+    # the running local *service*. ARCADEDB_LOCAL_HOST/HTTP_PORT describe that
+    # service (the Pi's embedded DB on 2482) and are only meaningful when
+    # LOCAL_MIGRATOR_USE_RUNNING_SERVICE=1; honouring them here pointed the
+    # readiness probe at a port the migrator never publishes, so startup could
+    # never succeed whenever the two ports differ — as they do in
+    # .env.local.example (migrator 2481 vs service 2482).
+    ARCADEDB_LOCAL_HOST="127.0.0.1"
+    ARCADEDB_LOCAL_HTTP_PORT="$LOCAL_MIGRATOR_HTTP_PORT"
 fi
 
 BASE_URL="http://${ARCADEDB_LOCAL_HOST}:${ARCADEDB_LOCAL_HTTP_PORT}"
