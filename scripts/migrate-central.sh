@@ -7,7 +7,7 @@
 # Environment variables:
 #   ARCADEDB_HOST              ArcadeDB server hostname (default: localhost)
 #   ARCADEDB_HTTP_PORT         ArcadeDB HTTP API port (default: 2480)
-#   ARCADEDB_ROOT_PASSWORD     Root password (default: testpassword)
+#   ARCADEDB_ROOT_PASSWORD     Root password (required; no default)
 
 set -euo pipefail
 
@@ -26,7 +26,11 @@ SUBCOMMAND="${1:-migrate}"
 
 ARCADEDB_HOST="${ARCADEDB_HOST:-localhost}"
 ARCADEDB_HTTP_PORT="${ARCADEDB_HTTP_PORT:-2480}"
-ARCADEDB_ROOT_PASSWORD="${ARCADEDB_ROOT_PASSWORD:-testpassword}"
+# No default root password (review finding S-7): refuse to run without one.
+if [[ -z "${ARCADEDB_ROOT_PASSWORD:-}" ]]; then
+    echo "Error: ARCADEDB_ROOT_PASSWORD is not set (define it in .env.central)" >&2
+    exit 1
+fi
 ARCADEDB_CENTRAL_DB="nomon_central"
 
 BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"
@@ -40,9 +44,15 @@ source "$SCRIPT_DIR/lib/curl-auth.sh"
 source "$SCRIPT_DIR/lib/migrate-common.sh"
 
 usage() {
-    echo "Usage: $0 [migrate|validate|info|reconcile-lineage]"
+    echo "Usage: $0 [migrate|validate|info|reconcile-lineage|repair-checksums]"
     echo ""
     echo "Apply or inspect central migrations using ArcadeDB API."
+    echo ""
+    echo "  repair-checksums  Re-record the stored checksum of already-applied"
+    echo "                    migrations from the current file contents."
+    echo "                    Requires NOMOGRAPHIC_CONFIRM_REPAIR=1. Only use"
+    echo "                    after confirming the live schema matches the files;"
+    echo "                    it cannot tell a legacy hash from a real edit."
     exit 1
 }
 
@@ -255,6 +265,61 @@ validate_migrations() {
     echo "==> Central migration validation complete (${pending} pending)."
 }
 
+repair_checksums() {
+    if [ "${NOMOGRAPHIC_CONFIRM_REPAIR:-0}" != "1" ]; then
+        echo "Error: repair-checksums rewrites recorded migration checksums."
+        echo ""
+        echo "A mismatch means the file on disk differs from what was recorded"
+        echo "when the migration was applied. That is either a legacy hash, or a"
+        echo "migration that was edited after being applied — and this command"
+        echo "cannot tell the two apart. Confirm the live schema really matches"
+        echo "the files first, then re-run with NOMOGRAPHIC_CONFIRM_REPAIR=1."
+        exit 1
+    fi
+
+    echo "==> Repairing central migration checksums"
+    local repaired=0
+    local checked=0
+
+    for file_path in "${MIGRATION_FILES[@]}"; do
+        local file_name
+        local version
+        local escaped_version
+        local count
+        local expected_checksum
+        local actual_checksum
+        local escaped_checksum
+
+        file_name="$(basename "$file_path")"
+        version="$(migration_version "$file_name")"
+        escaped_version="$(escape_sql_literal "$version")"
+        count="$(record_count "SELECT count(*) as count FROM SchemaMigration WHERE version = '${escaped_version}'")"
+
+        if [ "${count:-0}" -eq 0 ] 2>/dev/null; then
+            echo "  [skip] ${file_name} (not applied)"
+            continue
+        fi
+
+        checked=$((checked + 1))
+        expected_checksum="$(sha256_file "$file_path")"
+        actual_checksum="$(record_checksum "$version")"
+        if [ "$expected_checksum" = "$actual_checksum" ]; then
+            echo "  [ok] ${file_name}"
+            continue
+        fi
+
+        escaped_checksum="$(escape_sql_literal "$expected_checksum")"
+        run_sql "UPDATE SchemaMigration SET checksum = '${escaped_checksum}' WHERE version = '${escaped_version}'" \
+            "repair checksum ${file_name}" >/dev/null
+        echo "  [repaired] ${file_name}"
+        echo "             was ${actual_checksum}"
+        echo "             now ${expected_checksum}"
+        repaired=$((repaired + 1))
+    done
+
+    echo "==> Repaired ${repaired} of ${checked} applied migration(s)."
+}
+
 info_migrations() {
     echo "==> Central migration status"
     for file_path in "${MIGRATION_FILES[@]}"; do
@@ -277,7 +342,7 @@ info_migrations() {
 }
 
 case "$SUBCOMMAND" in
-    migrate|validate|info|reconcile-lineage)
+    migrate|validate|info|reconcile-lineage|repair-checksums)
         ;;
     *)
         echo "Error: unknown subcommand '${SUBCOMMAND}'."
@@ -303,5 +368,8 @@ case "$SUBCOMMAND" in
     reconcile-lineage)
         echo "==> Reconciling central schema lineage ..."
         reconcile_all_lineage
+        ;;
+    repair-checksums)
+        repair_checksums
         ;;
 esac

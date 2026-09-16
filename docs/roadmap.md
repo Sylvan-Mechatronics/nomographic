@@ -352,7 +352,7 @@ for local DB service deploy configuration, while still restricting what reaches
 - [x] Added explicit allowlist payload generation from `.env` for service env
   install (`LOCAL_ARCADEDB_*`, `ARCADEDB_LOCAL_*` only)
 - [x] Added fallback/default resolution for local service vars:
-  - `LOCAL_ARCADEDB_ROOT_PASSWORD` falls back to `testpassword`
+  - `LOCAL_ARCADEDB_ROOT_PASSWORD` is required (no default since 2026-09-13, review S-7)
   - local service ports/image/memory/db/data get deterministic defaults
 - [x] Preserved rollback semantics and service availability recovery behavior
 - [x] Removed the dedicated local-service env template file from repository

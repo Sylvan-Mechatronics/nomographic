@@ -50,7 +50,11 @@ SNAPSHOT_ENABLED="${NOMOGRAPHIC_LOCAL_DB_SNAPSHOT:-1}"
 SERVICE_IMAGE="${LOCAL_ARCADEDB_IMAGE:-arcadedata/arcadedb:latest}"
 SERVICE_HTTP_PORT="${LOCAL_ARCADEDB_HTTP_PORT:-2482}"
 SERVICE_BINARY_PORT="${LOCAL_ARCADEDB_BINARY_PORT:-2425}"
-SERVICE_ROOT_PASSWORD="${LOCAL_ARCADEDB_ROOT_PASSWORD:-testpassword}"
+if [[ -z "${LOCAL_ARCADEDB_ROOT_PASSWORD:-}" ]]; then
+    echo "Error: LOCAL_ARCADEDB_ROOT_PASSWORD is not set (define it in .env.local)" >&2
+    exit 1
+fi
+SERVICE_ROOT_PASSWORD="${LOCAL_ARCADEDB_ROOT_PASSWORD}"
 SERVICE_OPTS_MEMORY="${LOCAL_ARCADEDB_OPTS_MEMORY:-}"
 SERVICE_DB_NAME="${ARCADEDB_LOCAL_DB:-nomon_local}"
 SERVICE_DATA_PATH="${ARCADEDB_LOCAL_DATA:-/var/lib/nomographic/local-db}"
@@ -143,16 +147,24 @@ if [[ -n "$PI_HOST" ]]; then
         "$SERVICE_DB_NAME" \
         "$SERVICE_DATA_PATH" \
         "$SNAPSHOT_ENABLED")"
-    REMOTE_CMD="NOMON_SUDO_PASS=${_NOMON_SUDO_PASS_QUOTED} bash -ls -- ${REMOTE_ARGS_QUOTED}"
+    REMOTE_CMD="bash -ls -- ${REMOTE_ARGS_QUOTED}"
 
     echo "==> Installing local DB service and applying migrations on ${PI_HOST}..."
-    ssh "${SSH_OPTS[@]}" "$PI_HOST" "$REMOTE_CMD" <<'END_REMOTE'
+    # The sudo password is prepended to the remote script on stdin instead of
+    # being placed in the ssh argv, so it never appears in `ps` (review S-9).
+    {
+    printf 'NOMON_SUDO_PASS=%s\n' "${_NOMON_SUDO_PASS_QUOTED}"
+    cat <<'END_REMOTE'
 set -eEuo pipefail
 
 remote_dir="${1:-~/perceptua-nomon/nomographic}"
 env_payload_b64="${2:-}"
 service_http_port="${3:-2482}"
-service_root_password="${4:-testpassword}"
+service_root_password="${4:-}"
+if [[ -z "${service_root_password}" ]]; then
+    echo "Error: no root password passed to the remote deploy step" >&2
+    exit 1
+fi
 service_db_name="${5:-nomon_local}"
 service_data_path="${6:-/var/lib/nomographic/local-db}"
 snapshot_enabled="${7:-1}"
@@ -515,6 +527,7 @@ trap - ERR
 cleanup
 log "==> Deploy complete. Service ${SERVICE_NAME} is available on 127.0.0.1:${service_http_port}."
 END_REMOTE
+    } | ssh "${SSH_OPTS[@]}" "$PI_HOST" "$REMOTE_CMD"
 
     echo "Deploy completed for ${PI_HOST}."
 else

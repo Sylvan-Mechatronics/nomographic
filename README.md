@@ -69,7 +69,7 @@ docker compose --env-file .env.central up -d
 ./scripts/init-db.sh
 
 # 4) Optional: seed central with test data
-./scripts/seed-central.sh
+NOMOGRAPHIC_SEED_TEST_DATA=1 ./scripts/seed-central.sh   # dev databases only: inserts a well-known test login
 ```
 
 ## Script Reference

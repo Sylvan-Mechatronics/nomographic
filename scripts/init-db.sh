@@ -9,7 +9,7 @@
 # Environment variables:
 #   ARCADEDB_HOST          — ArcadeDB server hostname (default: localhost)
 #   ARCADEDB_HTTP_PORT     — ArcadeDB HTTP API port (default: 2480)
-#   ARCADEDB_ROOT_PASSWORD — ArcadeDB root password (default: testpassword)
+#   ARCADEDB_ROOT_PASSWORD — ArcadeDB root password (required; no default)
 #   ARCADEDB_LOCAL_DATA    — Path for local embedded data (default: local/data)
 #   INIT_DB_RETRIES        — Max health-check retries (default: 30)
 #   INIT_DB_RETRY_DELAY    — Seconds between retries (default: 2)
@@ -106,7 +106,10 @@ init_central() {
     load_central_env
     ARCADEDB_HOST="${ARCADEDB_HOST:-localhost}"
     ARCADEDB_HTTP_PORT="${ARCADEDB_HTTP_PORT:-2480}"
-    ARCADEDB_ROOT_PASSWORD="${ARCADEDB_ROOT_PASSWORD:-testpassword}"
+    if [[ -z "${ARCADEDB_ROOT_PASSWORD:-}" ]]; then
+        echo "Error: ARCADEDB_ROOT_PASSWORD is not set (define it in .env.central)" >&2
+        exit 1
+    fi
     INIT_DB_RETRIES="${INIT_DB_RETRIES:-30}"
     INIT_DB_RETRY_DELAY="${INIT_DB_RETRY_DELAY:-2}"
     BASE_URL="http://${ARCADEDB_HOST}:${ARCADEDB_HTTP_PORT}"

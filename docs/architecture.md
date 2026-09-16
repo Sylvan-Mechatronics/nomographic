@@ -187,6 +187,25 @@ lineage tracking was added.
 ./scripts/migrate-local.sh reconcile-lineage
 ```
 
+**Checksum repair:** `migrate-central.sh repair-checksums` re-records the stored
+checksum of already-applied migrations from the current file contents. It exists
+for databases carrying checksums written by an older hashing scheme, where
+`validate` reports a mismatch even though the live schema matches the files.
+
+It is deliberately awkward to run: it refuses without
+`NOMOGRAPHIC_CONFIRM_REPAIR=1`, and prints the old and new hash for every row it
+rewrites. A mismatch is either a legacy hash or a migration that was edited after
+being applied, and the runner cannot tell those apart — so confirm the live
+schema really matches the files (property constraints, type and edge names)
+before repairing, or you will paper over a genuine divergence.
+
+```bash
+./scripts/migrate-central.sh validate          # shows the mismatches
+NOMOGRAPHIC_CONFIRM_REPAIR=1 \
+  ./scripts/migrate-central.sh repair-checksums
+./scripts/migrate-central.sh validate          # now clean
+```
+
 **Shared library:** All lineage logic lives in `scripts/lib/migrate-common.sh`,
 sourced by both `migrate-central.sh` and `migrate-local.sh`. The library requires
 three functions to be defined in the caller's scope: `run_sql`,
@@ -272,7 +291,7 @@ Four shell scripts in `scripts/` automate database lifecycle tasks:
 | Script | Purpose |
 |--------|---------|
 | `init-db.sh` | Waits for ArcadeDB health and initializes selected targets. Central and local both use ArcadeDB API runners. Accepts `central`, `local`, or `all` (default). |
-| `migrate-central.sh` | Central migration runner. Applies `migrate`, `validate`, `info`, or `reconcile-lineage` for `nomon_central` via ArcadeDB HTTP API. |
+| `migrate-central.sh` | Central migration runner. Applies `migrate`, `validate`, `info`, `reconcile-lineage`, or `repair-checksums` for `nomon_central` via ArcadeDB HTTP API. |
 | `migrate-local.sh` | Local migration runner. Applies `migrate`, `validate`, `info`, or `reconcile-lineage` for local SQL scripts in version order and tracks state/checksums in `SchemaMigration`. |
 | `seed-central.sh` | Inserts test data (user, vehicle, ownership edge) into `nomon_central` via HTTP API. Idempotent — checks for existing records before inserting. |
 | `lib/migrate-common.sh` | Shared lineage tracking library. Provides `parse_affected_types`, `record_lineage`, `reconcile_all_lineage`, and MetaType/Supersedes management. Sourced by both migration runners. |
