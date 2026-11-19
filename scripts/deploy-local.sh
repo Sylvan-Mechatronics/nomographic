@@ -11,8 +11,9 @@
 #   NOMON_PI_HOST                  SSH target (overridden by pi-host arg)
 #   PI_HOST                        Backward-compatible SSH target alias
 #   NOMON_SSH_KEY                  Path to SSH private key (optional)
+#   NOMON_HOME                     nomon root folder on Pi (default: ~/perceptua-nomon)
 #   NOMON_REMOTE_DIR               Remote nomographic directory on Pi
-#                                   (default: ~/perceptua-nomon/nomographic)
+#                                   (default: ${NOMON_HOME}/nomographic)
 #   sudo password env var          Optional sudo password for non-interactive
 #                                   remote sudo operations
 #   NOMOGRAPHIC_LOCAL_DB_SNAPSHOT  1 to snapshot local DB data before deploy
@@ -44,7 +45,9 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 PI_HOST="${1:-${NOMON_PI_HOST:-${PI_HOST:-}}}"
-REMOTE_DIR="${NOMON_REMOTE_DIR:-~/perceptua-nomon/nomographic}"
+# Kept as a literal "~/..." so it resolves against the Pi user's home.
+NOMON_HOME="${NOMON_HOME:-~/perceptua-nomon}"
+REMOTE_DIR="${NOMON_REMOTE_DIR:-${NOMON_HOME%/}/nomographic}"
 SNAPSHOT_ENABLED="${NOMOGRAPHIC_LOCAL_DB_SNAPSHOT:-1}"
 
 SERVICE_IMAGE="${LOCAL_ARCADEDB_IMAGE:-arcadedata/arcadedb:latest}"
@@ -157,7 +160,7 @@ if [[ -n "$PI_HOST" ]]; then
     cat <<'END_REMOTE'
 set -eEuo pipefail
 
-remote_dir="${1:-~/perceptua-nomon/nomographic}"
+remote_dir="${1:?remote nomographic directory argument is required}"
 env_payload_b64="${2:-}"
 service_http_port="${3:-2482}"
 service_root_password="${4:-}"
