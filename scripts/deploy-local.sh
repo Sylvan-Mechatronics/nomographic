@@ -125,6 +125,14 @@ if [[ -n "$PI_HOST" ]]; then
     fi
     RSYNC_OPTS+=(-e "${SSH_CMD}")
 
+    # rsync creates only the last path component, so on a fresh Pi (no
+    # NOMON_HOME yet) create the full remote path first. REMOTE_DIR may be a
+    # literal "~/..." that must resolve against the Pi user's home.
+    read -ra _ssh_cmd <<<"${SSH_CMD}"
+    # shellcheck disable=SC2016  # expanded by the remote shell, not here
+    _mkdir_remote='d=$1; case $d in "~") d=$HOME ;; "~/"*) d=$HOME/${d#"~/"} ;; esac; mkdir -p -- "$d"'
+    "${_ssh_cmd[@]}" "$PI_HOST" "bash -c $(printf '%q' "$_mkdir_remote") _ $(printf '%q' "$REMOTE_DIR")"
+
     rsync_dest="${PI_HOST}:${REMOTE_DIR}/"
     echo "==> Syncing nomographic to ${rsync_dest}..."
     rsync "${RSYNC_OPTS[@]}" "${PROJECT_DIR}/" "$rsync_dest"
