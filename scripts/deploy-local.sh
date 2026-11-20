@@ -11,7 +11,7 @@
 #   NOMON_PI_HOST                  SSH target (overridden by pi-host arg)
 #   PI_HOST                        Backward-compatible SSH target alias
 #   NOMON_SSH_KEY                  Path to SSH private key (optional)
-#   NOMON_HOME                     nomon root folder on Pi (default: ~/perceptua-nomon)
+#   NOMON_HOME                     nomon root folder on Pi (default: ~/sylvan-mechatronics)
 #   NOMON_REMOTE_DIR               Remote nomographic directory on Pi
 #                                   (default: ${NOMON_HOME}/nomographic)
 #   sudo password env var          Optional sudo password for non-interactive
@@ -46,7 +46,7 @@ fi
 
 PI_HOST="${1:-${NOMON_PI_HOST:-${PI_HOST:-}}}"
 # Kept as a literal "~/..." so it resolves against the Pi user's home.
-NOMON_HOME="${NOMON_HOME:-~/perceptua-nomon}"
+NOMON_HOME="${NOMON_HOME:-~/sylvan-mechatronics}"
 REMOTE_DIR="${NOMON_REMOTE_DIR:-${NOMON_HOME%/}/nomographic}"
 SNAPSHOT_ENABLED="${NOMOGRAPHIC_LOCAL_DB_SNAPSHOT:-1}"
 
